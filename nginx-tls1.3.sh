@@ -1,4 +1,5 @@
-﻿#!/bin/bash
+
+#!/bin/bash
 
 # 更新系统软件包
 sudo apt update
@@ -24,6 +25,10 @@ if ! command -v certbot &> /dev/null; then
     sudo apt install certbot python3-certbot-nginx -y
 fi
 
+# 用户输入域名和邮箱
+read -p "请输入域名: " domain_name
+read -p "请输入邮箱: " email
+
 # 选择证书申请方式
 echo "请选择证书申请方式："
 echo "1. 默认向Let's Encrypt等CA申请证书"
@@ -38,20 +43,20 @@ if [ "$cert_option" == "2" ]; then
         echo "Error: 无效的证书公钥或私钥文件路径。将使用选项1默认申请证书。"
         cert_option="1"
     else
-        sudo cp "$cert_public_key_path" /etc/nginx/ssl/your-domain.com.crt
-        sudo cp "$cert_private_key_path" /etc/nginx/ssl/your-domain.com.key
+        sudo cp "$cert_public_key_path" /etc/nginx/ssl/$domain_name.crt
+        sudo cp "$cert_private_key_path" /etc/nginx/ssl/$domain_name.key
         echo "使用已有证书完成。"
     fi
 fi
 
 if [ "$cert_option" == "1" ]; then
     # 申请证书（使用certbot）
-    sudo certbot --nginx --non-interactive --agree-tos --redirect --hsts --staple-ocsp --email your-email@example.com -d your-domain.com
+    sudo certbot --nginx --non-interactive --agree-tos --redirect --hsts --staple-ocsp --email $email -d $domain_name
     echo "证书签发机构：Let's Encrypt"
 fi
 
 # 获取证书有效期信息并显示
-cert_expiry=$(sudo openssl x509 -noout -dates -in /etc/letsencrypt/live/your-domain.com/fullchain.pem | grep "notAfter" | cut -d "=" -f 2)
+cert_expiry=$(sudo openssl x509 -noout -dates -in /etc/letsencrypt/live/$domain_name/fullchain.pem | grep "notAfter" | cut -d "=" -f 2)
 echo "SSL证书已签发，有效期至: $cert_expiry"
 
 # 创建404页面
@@ -97,8 +102,8 @@ server {
     listen [::]:443 ssl default_server;
     server_name _;
 
-    ssl_certificate /etc/nginx/ssl/your-domain.com.crt;
-    ssl_certificate_key /etc/nginx/ssl/your-domain.com.key;
+    ssl_certificate /etc/nginx/ssl/$domain_name.crt;
+    ssl_certificate_key /etc/nginx/ssl/$domain_name.key;
 
     # 只接受TLS 1.3及以上版本的SSL协议
     ssl_protocols TLSv1.3;
@@ -121,6 +126,9 @@ server {
     }
 }
 EOF'
+
+# 修改NGINX全局配置文件
+sudo sed -i 's/# server_tokens off;/server_tokens off;/' /etc/nginx/nginx.conf
 
 # 创建SSL证书目录
 sudo mkdir /etc/nginx/ssl
